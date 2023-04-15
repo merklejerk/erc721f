@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import "solmate/utils/FixedPointMathLib.sol";
+import "solmate/utils/LibString.sol";
+import "openzeppelin-contracts/contracts/utils/Base64.sol";
 import "./ERC721F.sol";
 import "./Ecosystem.sol";
-import "solmate/utils/FixedPointMathLib.sol";
 
 contract IDORunner {
     event Launch(TokyoCards nft, IUniswapV3Pool pool, uint256 tokenId);
@@ -70,13 +72,21 @@ contract TokyoCards is ERC721F('TokyoCards', 'TKYC', 1e6 ether, 1e6 ether / 256)
         }));
     }
 
-    function tokenURI(uint256 tokenId) external view returns (string memory) {
-        // TODO
-        return "";
+    function tokenURI(uint256 tokenId) external pure returns (string memory) {
+        string memory tokenIdString = LibString.toString(tokenId);
+        return string(abi.encodePacked(
+            'data:application/json;base64,',
+            Base64.encode(abi.encodePacked(
+                '{"image":"https://raw.githubusercontent.com/merklejerk/erc721f/main/assets/',
+                tokenIdString,
+                '.png","name":"EthTokyo ERC721F #',
+                tokenIdString,
+                '","description":"a very special fungible NFT token"}'
+            ))
+        ));
     }
 
     function _mint() internal override returns (uint256 tokenId) {
-        // TODO
         return ++_lastTokenId;
     }
 }
