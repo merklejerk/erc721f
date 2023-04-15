@@ -2,11 +2,14 @@
 pragma solidity ^0.8.19;
 
 import "./TestUtils.sol";
-import "../src/IDOToken.sol";
 import "./UniswapClones.sol";
+import "../src/demo/DemoToken.sol";
+import "../src/UniswapV3Launcher.sol";
 
-contract IDOTokenTest is UniswapClonedFixture, TestUtils {
+contract DemoTokenTest is UniswapClonedFixture, TestUtils {
     uint24 constant fee = 3000;
+    uint256 constant maxSupply = 256;
+    UniswapV3Launcher launcher;
     TokyoCards erc721;
     ERC20N erc20;
     IUniswapV3Pool pool;
@@ -15,16 +18,16 @@ contract IDOTokenTest is UniswapClonedFixture, TestUtils {
 
     constructor() {
         _etch();
+        launcher = new UniswapV3Launcher(nonfungiblePositionManager);
     }
 
     receive() external payable {}
 
     function setUp() external {
-        TestableIDORunner runner =
-            new TestableIDORunner{value: 1 ether}(nonfungiblePositionManager, fee);
-        (erc721, pool, positionTokenId) = runner.get();
+        erc721 = new TokyoCards(address(launcher));
         erc20 = erc721.erc20();
         q = erc20.q();
+        (pool, positionTokenId) = launcher.launch{value: 1 ether}(erc721, address(this), fee, maxSupply);
     }
 
     function test_initialConditions() external {
@@ -81,7 +84,7 @@ contract IDOTokenTest is UniswapClonedFixture, TestUtils {
         }));
         assertEq(erc20.balanceOf(user), buyAmount - sellAmount);
         assertEq(erc721.balanceOf(user), (buyAmount - sellAmount) / q);
-        assertEq(erc721.balanceOf(address(pool)), (buyAmount / q) - ((buyAmount - sellAmount) / q));
+        assertEq(erc721.balanceOf(address(pool)), sellAmount / q);
     }
 
     function test_canSellThenBuyBack() external {
@@ -123,26 +126,5 @@ contract IDOTokenTest is UniswapClonedFixture, TestUtils {
         assertEq(erc20.balanceOf(user), buyAmount);
         assertEq(erc721.balanceOf(user), buyAmount / q);
         assertEq(erc721.balanceOf(address(pool)), 0);
-    }
-}
-
-contract TestableIDORunner is IDORunner {
-    TokyoCards nft;
-    IUniswapV3Pool public pool;
-    uint256 public tokenId;
-
-    constructor(INonfungiblePositionManager nfpMgr, uint24 fee)
-        payable
-        IDORunner(nfpMgr, fee)
-    {}
-
-    function get() external view returns (TokyoCards nft_, IUniswapV3Pool pool_, uint256 tokenId_) {
-        return (nft, pool, tokenId);
-    }
-
-    function _onLaunch(TokyoCards nft_, IUniswapV3Pool pool_, uint256 tokenId_) internal override {
-        nft = nft_;
-        pool = pool_;
-        tokenId = tokenId_;
     }
 }

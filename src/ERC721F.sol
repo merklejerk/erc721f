@@ -30,12 +30,14 @@ abstract contract ERC721F is IERC721 {
     error NotATokenError();
     error onERC721ReceivedError();
     error UnauthorizedError();
+    error OnlyMinterError();
 
     using LibTokensArray for uint256[];
 
-    uint256 public immutable totalSupply;
+    uint256 public totalSupply;
     uint256 public immutable q;
     ERC20N public immutable erc20;
+    address public minter;
     string public name;
     string public symbol;
     mapping (address => mapping (address => bool)) public isApprovedForAll;
@@ -43,12 +45,19 @@ abstract contract ERC721F is IERC721 {
     mapping (address => uint256[]) private _tokensByOwner;
     mapping (uint256 => TokenInfo) private _tokenInfoByTokenId;
 
-    constructor(string memory name_, string memory symbol_, uint256 totalErc20Supply_, uint256 q_) {
+    modifier onlyMinter() {
+        if (msg.sender != minter) {
+            revert OnlyMinterError();
+        }
+        _;
+    }
+
+    constructor(address minter_, string memory name_, string memory symbol_, uint256 q_) {
+        minter = minter_;
         name = name_;
         symbol = symbol_;
         q = q_;
-        totalSupply = totalErc20Supply_ / q;
-        erc20 = new ERC20N(name, symbol, totalErc20Supply_, q_);
+        erc20 = new ERC20N(name, symbol, q_);
     }
 
     function balanceOf(address owner) external view returns (uint256) {
@@ -61,6 +70,19 @@ abstract contract ERC721F is IERC721 {
             revert NotATokenError();
         }
         return owner;
+    }
+
+    function abdicate() external onlyMinter {
+        minter = address(0);
+    }
+    
+    function mint(address to, uint256 amount) external onlyMinter {
+        erc20.mint(to, amount * q);
+        _form(to, amount);
+    }
+
+    function mintErc20s(address to, uint256 amount) external onlyMinter {
+        erc20.mint(to, amount);
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
@@ -133,6 +155,12 @@ abstract contract ERC721F is IERC721 {
         if (msg.sender != address(erc20)) {
             revert UnauthorizedError();
         }
+        if (minter == address(0)) {
+            _form(owner, tokenCount);
+        }
+    }
+
+    function _form(address owner, uint256 tokenCount) private {
         uint256 n = _tokensByOwner[address(this)].length;
         // TODO: batch
         for (uint256 i = 0; i < tokenCount; ++i) {
@@ -170,10 +198,9 @@ contract ERC20N is IERC20 {
     string public name;
     string public symbol;
     uint256 public constant decimals = 18;
-
     ERC721F public immutable erc721;
     uint256 public immutable q;
-    uint256 public immutable totalSupply;
+    uint256 public totalSupply;
     mapping (address => mapping (address => uint256)) public allowance;
     mapping (address => uint256) public balanceOf;
 
@@ -184,18 +211,21 @@ contract ERC20N is IERC20 {
         _;
     }
 
-    constructor(string memory name_, string memory symbol_, uint256 totalSupply_, uint256 q_) {
+    constructor(string memory name_, string memory symbol_, uint256 q_) {
         name = name_;
         symbol = symbol_;
-        totalSupply = totalSupply_;
         q = q_;
         erc721 = ERC721F(msg.sender);
-        balanceOf[msg.sender] = totalSupply_;
-        emit Transfer(address(0), address(this), totalSupply_);
     }
 
     function adjust(address from, address to, uint256 amount) external onlyERC721 {
         _adjust(from, to, amount);
+    }
+
+    function mint(address to, uint256 amount) external onlyERC721 {
+        totalSupply += amount;
+        balanceOf[to] += amount;
+        emit Transfer(address(0), to, amount);
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
@@ -225,21 +255,23 @@ contract ERC20N is IERC20 {
                 allowance[from][msg.sender] = a - amount;
             }
         }
-        {
-            uint256 b = balanceOf[from];
-            uint256 d = (b / q) - (b - amount) / q;
-            if (d != 0) {
-                erc721.smash(from, d);
-            }
-        }
-        {
-            uint256 b = balanceOf[to];
-            uint256 d = (b + amount) / q - (b / q);
-            if (d != 0) {
-                erc721.form(to, d);
-            }
-        }
+        _syncSmash(from, balanceOf[from], amount);
+        _syncForm(to, balanceOf[to], amount);
         _adjust(from, to, amount);
+    }
+
+    function _syncSmash(address owner, uint256 balance, uint256 balanceRemoved) private {
+        uint256 d = (balance / q) - (balance - balanceRemoved) / q;
+        if (d != 0) {
+            erc721.smash(owner, d);
+        }
+    }
+
+    function _syncForm(address owner, uint256 balance, uint256 balanceAdded) private {
+        uint256 d = (balance + balanceAdded) / q - (balance / q);
+        if (d != 0) {
+            erc721.form(owner, d);
+        }
     }
 
     function _adjust(address from, address to, uint256 amount) private {
