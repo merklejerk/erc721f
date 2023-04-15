@@ -79,7 +79,7 @@ contract TokyoCards is ERC721F('TokyoCards', 'TKYC', 1e6 ether, 1e6 ether / 256)
             Base64.encode(abi.encodePacked(
                 '{"image":"https://raw.githubusercontent.com/merklejerk/erc721f/main/assets/',
                 tokenIdString,
-                '.png","name":"EthTokyo ERC721F #',
+                '.jpg","name":"EthTokyo ERC721F #',
                 tokenIdString,
                 '","description":"a very special fungible NFT token"}'
             ))
