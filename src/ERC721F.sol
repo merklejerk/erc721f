@@ -1,31 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-interface IERC721Events {
-    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
-    event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
-    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
-}
-
-interface IERC721 is IERC721Events {
-    function name() external view returns (string memory name);
-    function symbol() external view returns (string memory symbol);
-    function tokenURI(uint256 tokenId) external view returns (string memory);
-    function isApprovedForAll(address owner, address spender) external view returns (bool);
-    function getApproved(uint256 tokenId) external view returns (address);
-    function balanceOf(address owner) external view returns (uint256);
-    function ownerOf(uint256 tokenId) external view returns (address);
-    function supportsInterface(bytes4 interfaceId) external view returns (bool);
-    function setApprovalForAll(address spender, bool isApproved) external;
-    function approve(address spender, uint256 tokenId) external;
-    function transferFrom(address from, address to, uint256 tokenId) external;
-    function safeTransferFrom(address from, address to, uint256 tokenId) external;
-    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory receiveData) external;
-}
-
-interface IERC721Receiver {
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes memory data) external returns (bytes4);
-}
+import "./Tokens.sol";
 
 library LibTokensArray {
     function pushValue(uint256[] storage arr, uint256 value) internal returns (uint256 idx) {
@@ -186,22 +162,6 @@ abstract contract ERC721F is IERC721 {
     function _mint() internal virtual returns (uint256 tokenId);
 }
 
-interface IERC20Events {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-}
-
-interface IERC20 is IERC20Events {
-    function name() external view returns (string memory);
-    function symbol() external view returns (string memory);
-    function decimals() external view returns (uint256);
-    function allowance(address owner, address spender) external view returns (uint256);
-    function balanceOf(address owner) external view returns (uint256);
-    function approve(address spender, uint256 amount) external returns (bool);
-    function transfer(address to, uint256 amount) external returns (bool);
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-}
-
 contract ERC20N is IERC20 {
     error OnlyERC721Error();
 
@@ -226,6 +186,17 @@ contract ERC20N is IERC20 {
         symbol = symbol_;
         q = q_;
         erc721 = ERC721F(msg.sender);
+    }
+
+    function adjust(address from, address to, uint256 amount) external onlyERC721 {
+        _adjust(from, to, amount);
+    }
+
+    /// @notice mints ERC20s WITHOUT NFTs. Used for IDOs.
+    /// @dev Should only be called when setting up the IDO.`
+    function mintTokensOnly(address to, uint256 amount) external onlyERC721 {
+        balanceOf[to] += amount;
+        emit Transfer(address(0), to, amount);
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
@@ -268,19 +239,10 @@ contract ERC20N is IERC20 {
         _adjust(from, to, amount);
     }
 
-    function adjust(address from, address to, uint256 amount) external onlyERC721 {
-        _adjust(from, to, amount);
-    }
-
     function _adjust(address from, address to, uint256 amount) private {
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         emit Transfer(from, to, amount);
     }
 
-    /// @notice mints ERC20s WITHOUT NFTs. Used for IDOs.
-    function _mintTokensOnly(address to, uint256 amount) internal {
-        balanceOf[to] += amount;
-        emit Transfer(address(0), to, amount);
-    }
 }
