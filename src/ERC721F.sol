@@ -72,6 +72,17 @@ abstract contract ERC721F is IERC721 {
         return owner;
     }
 
+    function tokenByIndex(uint256 idx) external view returns (uint256) {
+        if (idx >= totalSupply) {
+            revert NotATokenError();
+        }
+        return idx;
+    }
+
+    function tokenOfOwnerByIndex(address owner, uint256 idx) external view returns (uint256) {
+        return _tokensByOwner[owner][idx];
+    }
+
     function abdicate(address minter_) external onlyMinter {
         minter = minter_;
     }
@@ -86,7 +97,10 @@ abstract contract ERC721F is IERC721 {
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == 0xffffffff || interfaceId == 0x80ac58cd || interfaceId == 0x5b5e139f;
+        return interfaceId == 0xffffffff
+            || interfaceId == 0x80ac58cd
+            || interfaceId == 0x5b5e139f
+            || interfaceId == 0x780e9d63;
     }
 
     function setApprovalForAll(address spender, bool isApproved) external {
@@ -122,6 +136,10 @@ abstract contract ERC721F is IERC721 {
         }
         _transfer(info, to);
         erc20.adjust(from, to, q);
+        _callReceiver(from, to, tokenId, receiveData);
+    }
+
+    function _callReceiver(address from, address to, uint256 tokenId, bytes memory receiveData) private {
         if (to.code.length != 0) {
             if (
                 IERC721Receiver(to).onERC721Received(
@@ -176,10 +194,12 @@ abstract contract ERC721F is IERC721 {
     function _transfer(TokenInfo memory info, address to)
         private
     {
+        // TODO: this logic is funky
         address from = info.owner;
         uint256 tokenId;
         if (info.ownerTokenIdx >= _tokensByOwner[from].length) {
             tokenId = _mint();
+            ++totalSupply;
         } else {
             tokenId = _tokensByOwner[from].removeIdx(info.ownerTokenIdx);
         }
@@ -240,11 +260,7 @@ contract ERC20N is IERC20 {
     }
 
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        if (from == address(erc721) && amount < totalSupply && balanceOf[from] == totalSupply) {
-            _adjust(from, to, amount);
-        } else {
-            _transferFrom(from, to, amount);
-        }
+        _transferFrom(from, to, amount);
         return true;
     }
 

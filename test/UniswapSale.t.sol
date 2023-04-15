@@ -6,7 +6,7 @@ import "./UniswapClones.sol";
 import "../src/demo/DemoToken.sol";
 import "../src/UniswapV3Launcher.sol";
 
-contract DemoTokenTest is UniswapClonedFixture, TestUtils {
+contract UniswapSaleTest is UniswapClonedFixture, TestUtils {
     uint24 constant fee = 3000;
     uint256 constant maxSupply = 256;
     UniswapV3Launcher launcher;
