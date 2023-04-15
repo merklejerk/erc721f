@@ -72,8 +72,8 @@ abstract contract ERC721F is IERC721 {
         return owner;
     }
 
-    function abdicate() external onlyMinter {
-        minter = address(0);
+    function abdicate(address minter_) external onlyMinter {
+        minter = minter_;
     }
     
     function mint(address to, uint256 amount) external onlyMinter {

@@ -55,7 +55,7 @@ contract UniswapV3Launcher {
             (FixedPointMathLib.sqrt(mintParams.amount1Desired) << 96) /
             FixedPointMathLib.sqrt(mintParams.amount0Desired)));
         (tokenId,,,) = nfpMgr.mint{value: msg.value}(mintParams);
-        erc721.abdicate();
+        erc721.abdicate(address(0));
         // TODO: refund unused ERC20.
     }
 }
