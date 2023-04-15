@@ -33,6 +33,7 @@ abstract contract ERC721F is IERC721 {
 
     using LibTokensArray for uint256[];
 
+    uint256 public immutable totalSupply;
     uint256 public immutable q;
     ERC20N public immutable erc20;
     string public name;
@@ -42,11 +43,12 @@ abstract contract ERC721F is IERC721 {
     mapping (address => uint256[]) private _tokensByOwner;
     mapping (uint256 => TokenInfo) private _tokenInfoByTokenId;
 
-    constructor(string memory name_, string memory symbol_, uint256 q_) {
+    constructor(string memory name_, string memory symbol_, uint256 totalErc20Supply_, uint256 q_) {
         name = name_;
         symbol = symbol_;
         q = q_;
-        erc20 = new ERC20N(name, symbol, q_);
+        totalSupply = totalErc20Supply_ / q;
+        erc20 = new ERC20N(name, symbol, totalErc20Supply_, q_);
     }
 
     function balanceOf(address owner) external view returns (uint256) {
@@ -84,6 +86,7 @@ abstract contract ERC721F is IERC721 {
             revert BadRecipientError();
         }
         _transfer(info, to);
+        erc20.adjust(from, to, q);
     }
 
     function safeTransferFrom(address from, address to, uint256 tokenId) external {
@@ -96,6 +99,7 @@ abstract contract ERC721F is IERC721 {
             revert NotTokenOwnerError();
         }
         _transfer(info, to);
+        erc20.adjust(from, to, q);
         if (to.code.length != 0) {
             if (
                 IERC721Receiver(to).onERC721Received(
@@ -117,7 +121,7 @@ abstract contract ERC721F is IERC721 {
         }
         uint256 n = _tokensByOwner[owner].length;
         // TODO: batch
-        for (uint256 i = 0; i < tokenCount; ++i) {
+        for (uint256 i = 0; i < tokenCount && n > i; ++i) {
             _transfer(
                 _tokenInfoByTokenId[_tokensByOwner[owner][n - i - 1]],
                 address(this)
@@ -132,12 +136,11 @@ abstract contract ERC721F is IERC721 {
         uint256 n = _tokensByOwner[address(this)].length;
         // TODO: batch
         for (uint256 i = 0; i < tokenCount; ++i) {
-            _transfer(
-                n > i
-                    ? _tokenInfoByTokenId[_tokensByOwner[address(this)][n - i - 1]]
-                    : TokenInfo(address(0), 0),
-                owner
-            );
+            TokenInfo memory info;
+            if (n > i) {
+                info = _tokenInfoByTokenId[_tokensByOwner[address(this)][n - i - 1]];
+            }
+            _transfer(info, owner);
         }
     }
 
@@ -155,7 +158,6 @@ abstract contract ERC721F is IERC721 {
         info.owner = to;
         info.ownerTokenIdx = uint96(_tokensByOwner[to].pushValue(tokenId));
         _tokenInfoByTokenId[tokenId] = info;
-        erc20.adjust(from, to, q);
         emit Transfer(from, to, tokenId);
     }
 
@@ -171,6 +173,7 @@ contract ERC20N is IERC20 {
 
     ERC721F public immutable erc721;
     uint256 public immutable q;
+    uint256 public immutable totalSupply;
     mapping (address => mapping (address => uint256)) public allowance;
     mapping (address => uint256) public balanceOf;
 
@@ -181,22 +184,18 @@ contract ERC20N is IERC20 {
         _;
     }
 
-    constructor(string memory name_, string memory symbol_, uint256 q_) {
+    constructor(string memory name_, string memory symbol_, uint256 totalSupply_, uint256 q_) {
         name = name_;
         symbol = symbol_;
+        totalSupply = totalSupply_;
         q = q_;
         erc721 = ERC721F(msg.sender);
+        balanceOf[msg.sender] = totalSupply_;
+        emit Transfer(address(0), address(this), totalSupply_);
     }
 
     function adjust(address from, address to, uint256 amount) external onlyERC721 {
         _adjust(from, to, amount);
-    }
-
-    /// @notice mints ERC20s WITHOUT NFTs. Used for IDOs.
-    /// @dev Should only be called when setting up the IDO.`
-    function mintTokensOnly(address to, uint256 amount) external onlyERC721 {
-        balanceOf[to] += amount;
-        emit Transfer(address(0), to, amount);
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
@@ -211,7 +210,11 @@ contract ERC20N is IERC20 {
     }
 
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        _transferFrom(from, to, amount);
+        if (from == address(erc721) && amount < totalSupply && balanceOf[from] == totalSupply) {
+            _adjust(from, to, amount);
+        } else {
+            _transferFrom(from, to, amount);
+        }
         return true;
     }
 
@@ -231,9 +234,9 @@ contract ERC20N is IERC20 {
         }
         {
             uint256 b = balanceOf[to];
-            uint256 d = (b / q) - (b + amount) / q;
+            uint256 d = (b + amount) / q - (b / q);
             if (d != 0) {
-                erc721.form(from, d);
+                erc721.form(to, d);
             }
         }
         _adjust(from, to, amount);

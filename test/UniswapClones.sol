@@ -8,6 +8,7 @@ contract UniswapClonedFixture is Test {
     IWETH9 internal weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     IUniswapV3Factory internal uniswapV3Factory = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984);
     INonfungiblePositionManager internal nonfungiblePositionManager = INonfungiblePositionManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
+    ISwapRouter internal swapRouter = ISwapRouter(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45);
 
     function _etch() internal {
         vm.etch(address(weth), bytes(vm.readFileBinary('test/runtimes/weth9.bin')));
@@ -15,11 +16,12 @@ contract UniswapClonedFixture is Test {
         vm.etch(address(uniswapV3Factory), type(UniswapV3Initializer).runtimeCode);
         IStateInitializer(address(uniswapV3Factory)).init();
         vm.etch(address(uniswapV3Factory), bytes(vm.readFileBinary('test/runtimes/uniswap3-factory.bin')));
-
         
         vm.etch(address(nonfungiblePositionManager), type(NonFungiblePositionManagerInitializer).runtimeCode);
         IStateInitializer(address(nonfungiblePositionManager)).init();
         vm.etch(address(nonfungiblePositionManager), bytes(vm.readFileBinary('test/runtimes/uniswap3-nfpm.bin')));
+
+        vm.etch(address(swapRouter), bytes(vm.readFileBinary('test/runtimes/router.bin')));
     }
 }
 
@@ -39,7 +41,7 @@ contract UniswapV3Initializer is IStateInitializer {
 }
 
 contract NonFungiblePositionManagerInitializer is IStateInitializer {
-    uint256[3] __padding;
+    uint256[13] __padding;
     uint176 _nextId;
     uint80 _nextPoolId;
 

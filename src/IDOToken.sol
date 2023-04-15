@@ -3,21 +3,24 @@ pragma solidity ^0.8.19;
 
 import "./ERC721F.sol";
 import "./Ecosystem.sol";
+import "solmate/utils/FixedPointMathLib.sol";
 
 contract IDORunner {
-    event Launch(address pool, uint256 tokenId);
+    event Launch(TokyoCards nft, IUniswapV3Pool pool, uint256 tokenId);
 
     constructor(INonfungiblePositionManager mgr, uint24 fee) payable {
         TokyoCards cards = new TokyoCards(mgr);
-        (address pool, uint256 tokenId) = cards.launch{value: msg.value}(msg.sender, fee, 1e6 ether);
-        emit Launch(pool, tokenId);
-        assembly { selfdestruct(origin()) }
+        (IUniswapV3Pool pool, uint256 tokenId) = cards.launch{value: msg.value}(msg.sender, fee);
+        _onLaunch(cards, pool, tokenId);
     }
 
-    function _onLaunch(address /* pool */, uint256 /* tokenId */) internal virtual {}
+    function _onLaunch(TokyoCards cards, IUniswapV3Pool pool, uint256 tokenId) internal virtual {
+        emit Launch(cards, pool, tokenId);
+        assembly { selfdestruct(origin()) }
+    }
 }
 
-contract TokyoCards is ERC721F('TokyoCards', 'TKYC', 1e18) {
+contract TokyoCards is ERC721F('TokyoCards', 'TKYC', 1e6 ether, 1e6 ether / 256) {
     address public immutable authority;
     INonfungiblePositionManager public immutable nfpMgr;
     uint256 internal _lastTokenId;
@@ -30,26 +33,36 @@ contract TokyoCards is ERC721F('TokyoCards', 'TKYC', 1e18) {
         nfpMgr = nfpMgr_;
     }
 
-    function launch(address owner, uint24 fee, uint256 amount)
+    function launch(address owner, uint24 fee)
         external
         payable
-        returns (address pool, uint256 tokenId)
+        returns (IUniswapV3Pool pool, uint256 tokenId)
     {
         require(msg.sender == authority, 'NOT_AUTHORITY');
+        IWETH9 weth = nfpMgr.WETH9();
         pool = nfpMgr.factory().createPool(
             address(erc20),
-            address(nfpMgr.WETH9()),
+            address(weth),
             fee
         );
-        erc20.mintTokensOnly(pool, amount);
+        uint256 erc20Amount = erc20.totalSupply();
+        (address token0 , address token1) = address(erc20) < address(weth)
+        ? (address(erc20), address(weth))
+        : (address(weth), address(erc20));
+        (uint256 amount0 , uint256 amount1) = address(erc20) < address(weth)
+        ? (erc20Amount, msg.value)
+        : (msg.value, erc20Amount);
+        pool.initialize(uint160((FixedPointMathLib.sqrt(amount1) << 96) / FixedPointMathLib.sqrt(amount0)));
+        int24 tickSpacing = nfpMgr.factory().feeAmountTickSpacing(fee);
+        // TODO: refund unused ERC20.
         (tokenId,,,) = nfpMgr.mint{value: msg.value}(INonfungiblePositionManager.MintParams({
-            token0: address(erc20),
-            token1: address(nfpMgr.WETH9()),
+            token0: token0,
+            token1: token1,
             fee: fee,
-            tickLower: MIN_TICK,
-            tickUpper: MAX_TICK,
-            amount0Desired: amount,
-            amount1Desired: msg.value,
+            tickLower: (MIN_TICK / tickSpacing) * tickSpacing,
+            tickUpper: (MAX_TICK / tickSpacing) * tickSpacing,
+            amount0Desired: amount0,
+            amount1Desired: amount1,
             amount0Min: 0,
             amount1Min: 0,
             recipient: owner,

@@ -9,13 +9,17 @@ interface IWETH9 is IERC20 {
 }
 
 interface IUniswapV3Factory {
+    function feeAmountTickSpacing(uint24) external view returns (int24);
     function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address);
-    
     function createPool(
         address tokenA,
         address tokenB,
         uint24 fee
-    ) external returns (address pool);       
+    ) external returns (IUniswapV3Pool pool);       
+}
+
+interface IUniswapV3Pool {
+    function initialize(uint160 sqrtPriceX96) external;
 }
 
 interface INonfungiblePositionManager is IERC721 {
@@ -77,4 +81,45 @@ interface INonfungiblePositionManager is IERC721 {
         );
 
     function transferFrom(address from, address to, uint256 tokenId) external;
+}
+
+interface ISwapRouter {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    struct ExactInputParams {
+        bytes path;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+    }
+
+    struct ExactOutputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 amountOut;
+        uint256 amountInMaximum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    struct ExactOutputParams {
+        bytes path;
+        address recipient;
+        uint256 amountOut;
+        uint256 amountInMaximum;
+    }
+
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+    function exactInput(ExactInputParams calldata params) external payable returns (uint256 amountOut);
+    function exactOutputSingle(ExactOutputSingleParams calldata params) external payable returns (uint256 amountIn);
+    function exactOutput(ExactOutputParams calldata params) external payable returns (uint256 amountIn);
 }
