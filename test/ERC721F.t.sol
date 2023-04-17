@@ -107,6 +107,104 @@ contract ERC721FTest is TestUtils {
         assertEq(erc721.totalSupply(), 2);
         assertEq(erc20.totalSupply(), q * 2);
     }
+
+    function test_canTransferAll() external {
+        address alice = _randomAddress();
+        address bob = _randomAddress();
+        erc721.mint(alice, 2);
+        erc721.abdicate(address(0));
+        vm.prank(alice);
+        erc20.transfer(bob, 2 * q);
+        assertEq(erc721.ownerOf(1), bob);
+        assertEq(erc721.ownerOf(2), bob);
+        assertEq(erc20.balanceOf(alice), 0);
+        assertEq(erc20.balanceOf(bob), q * 2);
+    }
+
+    function test_canTransferAll2() external {
+        address alice = _randomAddress();
+        address bob = _randomAddress();
+        erc721.mint(alice, 2);
+        erc721.mintErc20s(alice, q / 2);
+        erc721.abdicate(address(0));
+        uint256 bal = erc20.balanceOf(alice);
+        vm.prank(alice);
+        erc20.transfer(bob, bal);
+        assertEq(erc721.ownerOf(1), bob);
+        assertEq(erc721.ownerOf(2), bob);
+        assertEq(erc20.balanceOf(alice), 0);
+        assertEq(erc20.balanceOf(bob), bal);
+    }
+
+    function test_canTransferAll5() external {
+        address alice = _randomAddress();
+        address bob = _randomAddress();
+        erc721.mintErc20s(alice, 256 * q);
+        erc721.abdicate(address(0));
+        vm.prank(alice);
+        erc20.transfer(bob, q * 2573 / 1000);
+        assertEq(erc721.ownerOf(1), bob);
+        assertEq(erc721.ownerOf(2), bob);
+        uint256 bal = erc20.balanceOf(bob);
+        vm.prank(bob);
+        erc20.transfer(alice, bal);
+        assertEq(erc721.totalSupply(), 3);
+    }
+
+    function testFuzz_canTransferAll3(uint256 n_) external {
+        address alice = _randomAddress();
+        address bob = _randomAddress();
+        erc721.mint(alice, 10);
+        erc721.abdicate(address(0));
+        uint256 startingBal = erc20.balanceOf(alice);
+        uint256 b;
+        for (uint256 i = 0; i < n_ % 32; ++i) {
+            b = erc20.balanceOf(alice) * (_randomUint256() % 100) / 100;
+            vm.prank(alice);
+            erc20.transfer(bob, b);
+            assertEq(erc721.balanceOf(alice), erc20.balanceOf(alice) / q);
+            assertEq(erc721.balanceOf(bob), erc20.balanceOf(bob) / q);
+            b = erc20.balanceOf(bob) * (_randomUint256() % 100) / 100;
+            vm.prank(bob);
+            erc20.transfer(alice, b);
+            assertEq(erc721.balanceOf(alice), erc20.balanceOf(alice) / q);
+            assertEq(erc721.balanceOf(bob), erc20.balanceOf(bob) / q);
+        }
+        b = erc20.balanceOf(alice);
+        vm.prank(alice);
+        erc20.transfer(bob, b);
+        assertEq(erc721.ownerOf(1), bob);
+        assertEq(erc721.ownerOf(2), bob);
+        assertEq(erc20.balanceOf(alice), 0);
+        assertEq(erc20.balanceOf(bob), startingBal);
+    }
+
+    function testFuzz_canTransferAll4(uint256 n_) external {
+        address alice = _randomAddress();
+        address bob = _randomAddress();
+        erc721.mintErc20s(alice, 10 * q);
+        erc721.abdicate(address(0));
+        uint256 startingBal = erc20.balanceOf(alice);
+        for (uint256 i = 0; i < n_ % 32; ++i) {
+            uint256 b = erc20.balanceOf(alice) * (_randomUint256() % 100) / 100;
+            vm.prank(alice);
+            erc20.transfer(bob, b);
+            // assertEq(erc721.balanceOf(alice), erc20.balanceOf(alice) / q);
+            assertEq(erc721.balanceOf(bob), erc20.balanceOf(bob) / q);
+            b = erc20.balanceOf(bob) * (_randomUint256() % 100) / 100;
+            vm.prank(bob);
+            erc20.transfer(alice, b);
+            // assertEq(erc721.balanceOf(alice), erc20.balanceOf(alice) / q);
+            assertEq(erc721.balanceOf(bob), erc20.balanceOf(bob) / q);
+        }
+        uint256 b = erc20.balanceOf(alice);
+        vm.prank(alice);
+        erc20.transfer(bob, b);
+        assertEq(erc721.ownerOf(1), bob);
+        assertEq(erc721.ownerOf(2), bob);
+        assertEq(erc20.balanceOf(alice), 0);
+        assertEq(erc20.balanceOf(bob), startingBal);
+    }
 }
 
 contract TestERC721F is ERC721F {

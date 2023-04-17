@@ -76,7 +76,7 @@ abstract contract ERC721F is IERC721 {
         if (idx >= totalSupply) {
             revert NotATokenError();
         }
-        return idx;
+        return idx + 1;
     }
 
     function tokenOfOwnerByIndex(address owner, uint256 idx) external view returns (uint256) {
@@ -177,7 +177,7 @@ abstract contract ERC721F is IERC721 {
             _form(owner, tokenCount);
         }
     }
-
+    
     function _form(address owner, uint256 tokenCount) private {
         uint256 n = _tokensByOwner[address(this)].length;
         // TODO: batch
@@ -282,7 +282,7 @@ contract ERC20N is IERC20 {
             erc721.smash(owner, d);
         }
     }
-
+    
     function _syncForm(address owner, uint256 balance, uint256 balanceAdded) private {
         uint256 d = (balance + balanceAdded) / q - (balance / q);
         if (d != 0) {
